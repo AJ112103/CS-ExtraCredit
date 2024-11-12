@@ -150,3 +150,49 @@ class Matrix:
 
     def transpose_conjugate(self):
         return self.transpose().conjugate()
+    
+    def is_zero(self):
+        return all(all(entry == 0 for entry in row) for row in self.entries)
+    
+    def is_symmetric(self):
+        if self.n != self.m:
+            return False
+        return all(self.entries[i][j] == self.entries[j][i] for i in range(self.n) for j in range(i, self.m))
+    
+    def is_hermitian(self):
+        if self.n != self.m or self.field != "complex":
+            return False
+        return all(self.entries[i][j] == self.entries[j][i].conjugate() for i in range(self.n) for j in range(i, self.m))
+    
+    def is_square(self):
+        return self.n == self.m
+    
+    def is_orthogonal(self):
+        if not self.is_square():
+            return False
+        identity_matrix = self.identity_matrix(self.n)
+        return self * self.transpose() == identity_matrix
+    
+    def is_unitary(self):
+        if not self.is_square() or self.field != "complex":
+            return False
+        identity_matrix = self.identity_matrix(self.n)
+        return self.transpose_conjugate() * self == identity_matrix
+    
+    def is_scalar(self):
+        if not self.is_square():
+            return False
+        diagonal_value = self.entries[0][0]
+        return all(self.entries[i][i] == diagonal_value for i in range(self.n)) and \
+            all(self.entries[i][j] == 0 for i in range(self.n) for j in range(self.m) if i != j)
+
+
+
+    
+
+
+
+
+
+    
+
