@@ -46,6 +46,37 @@ class Vector:
 
         self.coordinates = list(coordinates)
 
+    def inner_product(self, other):
+        if self.n != other.n:
+            raise ValueError("Vectors must have the same dimension")
+        if self.field != other.field:
+            raise ValueError("Vectors must belong to the same field")
+        
+        if self.field == "complex":
+            return sum(a * b.conjugate() for a, b in zip(self.coordinates, other.coordinates))
+        else:
+            return sum(a * b for a, b in zip(self.coordinates, other.coordinates))
+    
+    def is_orthogonal_to(self, other):
+        ip = self.inner_product(other)
+        if self.field == "complex":
+            modulus = abs(ip)
+        else:
+            modulus = abs(ip)
+        return modulus < 1e-10
+
+    @staticmethod
+    def gram_schmidt(vectors):
+        orthogonal_set = []
+        for v in vectors:
+            w_coords = v.coordinates.copy()
+            for u in orthogonal_set:
+                scalar = v.inner_product(u) / u.inner_product(u)
+                w_coords = [a - scalar * b for a, b in zip(w_coords, u.coordinates)]
+            v = Vector(v.field, v.n, *w_coords)
+            orthogonal_set.append(v)
+        return orthogonal_set
+
 class Matrix:
     def __init__(self, field, n=None, m=None, *values_or_vectors):
         if field not in ["real", "complex"]:
@@ -558,6 +589,60 @@ class Matrix:
         
         result_matrix = change_matrix * Matrix(self.field, len(coordinates_B1), 1, *coord_vector_B1.coordinates)
         return [result_matrix.entries[i][0] for i in range(result_matrix.n)]
+    
+    def determinant_by_cofactor(self):
+        if not self.is_square():
+            raise ValueError("Determinant is only defined for square matrices")
+        if self.n == 1:
+            return self.entries[0][0]
+        determinant = 0
+        for col in range(self.m):
+            minor = self.minor_matrix(0, col)
+            cofactor = ((-1) ** col) * minor.determinant_by_cofactor()
+            determinant += self.entries[0][col] * cofactor
+        return determinant
+
+    def determinant_by_plu(self):
+        if not self.is_square():
+            raise ValueError("Determinant is only defined for square matrices")
+        P, _, U = self.plu_decompose()
+        determinant = 1
+        for i in range(self.n):
+            determinant *= U.entries[i][i]
+        return determinant * (-1) ** (sum(row.index(1) for row in P.entries))
+
+    def determinant_by_rref_method(self):
+        if not self.is_square():
+            raise ValueError("Determinant is only defined for square matrices")
+        return self.determinant_by_rref()
+
+    def qr_factorization(matrix):
+        Q = gram_schmidt([Vector(matrix.field, matrix.n, *matrix.get_column(i).coordinates) for i in range(matrix.m)])
+        R = Matrix(matrix.field, len(Q), len(Q))
+        for i, q in enumerate(Q):
+            for j in range(i, len(Q)):
+                R.entries[i][j] = inner_product(q, Vector(matrix.field, matrix.n, *matrix.get_column(j).coordinates))
+        return Matrix(matrix.field, len(Q), matrix.n, *[elem for q in Q for elem in q.coordinates]), R
+
+    def pseudoinverse(self):
+        Q, R = self.qr_factorization()
+        return R.inverse_by_row_reduction() * Q.transpose_conjugate()
+
+    def least_squares_solution(self, b):
+        pseudo_inv = self.pseudoinverse()
+        return pseudo_inv * b
+
+    def cholesky_decomposition(self):
+        if not self.is_square() or not self.is_hermitian():
+            raise ValueError("Cholesky decomposition requires a square, Hermitian positive-definite matrix")
+        L = [[0] * self.n for _ in range(self.n)]
+        for i in range(self.n):
+            for j in range(i + 1):
+                if i == j:
+                    L[i][j] = (self.entries[i][i] - sum(L[i][k] ** 2 for k in range(j))) ** 0.5
+                else:
+                    L[i][j] = (self.entries[i][j] - sum(L[i][k] * L[j][k] for k in range(j))) / L[j][j]
+        return Matrix(self.field, self.n, self.n, *[val for row in L for val in row])
 
 class SystemOfEquations:
     def __init__(self, A, b):
@@ -640,4 +725,3 @@ class SystemOfEquations:
             X[i] = (Y[i] - sum(U.entries[i][j] * X[j] for j in range(i + 1, self.A.n))) / U.entries[i][i]
         
         return Vector(self.A.field, self.A.m, *X)
-
